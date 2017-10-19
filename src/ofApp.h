@@ -1,8 +1,8 @@
 #pragma once
 
-#include <sndfile.h>
 #include "ofMain.h"
 #include "Oscillator.h"
+#include "Granulizer.h"
 
 class ofApp : public ofBaseApp{
 public:
@@ -13,6 +13,7 @@ public:
         TRIANGLE,
         AM,
         FM,
+        LOOP,
         GRANULAR
     };
 
@@ -38,16 +39,15 @@ private:
 	ofSoundStream soundStream_;
     
     Mode mode_;
-    Oscillator osc_, modOsc_;
+    Oscillator osc_;
+    Oscillator modOsc_;
+    Granulizer granulizer_;
 
     float frequency_;
     float modFrequency_;
 	float volume_;
     bool soundOn_;
     
-    std::vector<float> loop_;
-    int loopIdx_;
-
 	std::vector<float> lAudio_;
 	std::vector<float> rAudio_;
 };

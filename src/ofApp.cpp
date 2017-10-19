@@ -2,7 +2,7 @@
 
 #define SAMPLE_RATE 44100
 #define VOL 0.4f
-#define LOOP "data/Jazz10.wav"
+#define LOOP_NAME "data/Jazz10.wav"
 #define LOOP_GAIN 3.0f
 
 //--------------------------------------------------------------
@@ -17,6 +17,8 @@ void ofApp::setup(){
     mode_ = Mode::SINE;
     soundOn_ = true;
     
+    granulizer_.loadLoop(LOOP_NAME);
+    
 	lAudio_.assign(bufferSize, 0.0);
 	rAudio_.assign(bufferSize, 0.0);
 	
@@ -28,20 +30,6 @@ void ofApp::setup(){
 	soundStream_.setup(this, 2, 0, SAMPLE_RATE, bufferSize, 4);
 	
 	ofSetFrameRate(60);
-
-    loopIdx_ = 0;
-    SF_INFO sfInfo;
-    SNDFILE* sfFile = sf_open(LOOP, SFM_READ, &sfInfo);
-    if (sfFile) {
-        sf_command(sfFile, SFC_SET_NORM_FLOAT, NULL, SF_TRUE);
-        loop_.resize(sfInfo.frames);
-        sf_read_float(sfFile, loop_.data(), sfInfo.frames);
-        sf_close(sfFile);
-        std::cout << "Successfully loaded " << LOOP << "." << std::endl;
-    }
-    else {
-        std::cerr << "Error: cannot open " << LOOP << "." << std::endl;
-    }
 }
 
 //--------------------------------------------------------------
@@ -49,9 +37,9 @@ void ofApp::draw(){
 
 	ofSetColor(225);
 	ofDrawBitmapString("AUDIO OUTPUT EXAMPLE", 32, 32);
-	ofDrawBitmapString("press:\n\t's' to pause / unpause the audio\n\t'1' for noise\n\t'2' for sine wave\n\t'3' for square wave", 32, 62);
-    ofDrawBitmapString("\n'4' for triangle wave\n'5' for amplitude modulation\n'6' for frequency modulation\n'7' for granular synthesis", 400, 62);
-	
+	ofDrawBitmapString("'s' to pause / unpause the audio\n'1' for noise\n'2' for sine wave\n'3' for square wave\n'4' for triangle wave", 32, 62);
+    ofDrawBitmapString("'5' for amplitude (ring) modulation\n'6' for frequency modulation\n'7' for looping a sample\n'8' for granular synthesis", 432, 62);
+    
 	ofNoFill();
 	
 	// draw the left channel:
@@ -121,8 +109,11 @@ void ofApp::draw(){
         case Mode::FM:
             reportString += "fm " + ofToString(frequency_, 2) + "hz (mouse y), " + ofToString(modFrequency_, 2) + " hz (mouse x)";
             break;
+        case Mode::LOOP:
+            reportString += "looping " + std::string(LOOP_NAME);
+            break;
         case Mode::GRANULAR:
-            reportString += "granular " + ofToString(frequency_, 2) + "hz";
+            reportString += "granular " + ofToString(granulizer_.getGrainLen() * 1000, 2) + " ms";
             break;
     }
 	
@@ -169,8 +160,10 @@ void ofApp::keyPressed  (int key){
             mode_ = Mode::FM;
             break;
         case '7':
-            mode_ = Mode::GRANULAR;
+            mode_ = Mode::LOOP;
             break;
+        case '8':
+            mode_ = Mode::GRANULAR;
         default:
             break;
     }    	
@@ -184,6 +177,7 @@ void ofApp::mouseMoved(int x, int y ){
     float widthPct = (width-(width - x)) / width;
 	frequency_ = 2000.0f * heightPct;
     modFrequency_ = 500.0f * widthPct;
+    granulizer_.setGrainLen(granulizer_.getLoopLen() * widthPct);
 }
 
 //--------------------------------------------------------------
@@ -212,11 +206,18 @@ void ofApp::audioOut(float * output, int bufferSize, int nChannels) {
             case Mode::FM:
                 left = right = osc_.sine(frequency_ + 500 * modOsc_.sine(modFrequency_));
                 break;
-            case Mode::GRANULAR:
-                left = LOOP_GAIN * loop_[loopIdx_++];
-                right = LOOP_GAIN * loop_[loopIdx_++];
-                loopIdx_ %= loop_.size();
+            case Mode::LOOP: {
+                auto frame = granulizer_.straightFrame();
+                left = LOOP_GAIN * frame.first;
+                right = LOOP_GAIN * frame.second;
                 break;
+            }
+            case Mode::GRANULAR: {
+                auto frame = granulizer_.grainedFrame();
+                left = LOOP_GAIN * frame.first;
+                right = LOOP_GAIN * frame.second;
+                break;
+            }
             default:
                 break;
         }
